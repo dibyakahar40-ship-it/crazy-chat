@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thread</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#f8f6f2; --surface:#ffffff; --surface-raised:#f0ede7;
+  --text:#2b2a28; --text-dim:#8c887f; --accent:#c98f2e;
+  --sent:#6c5c96; --sent-text:#ffffff; --received:#f0ede7;
+  --divider:#e6e1d8; --online:#4caf82; --danger:#c85c4d;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;-webkit-font-smoothing:antialiased;}
+#app{width:100%;max-width:420px;height:100vh;max-height:844px;background:var(--bg);position:relative;overflow:hidden;display:flex;flex-direction:column;border-left:1px solid var(--divider);border-right:1px solid var(--divider);}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);}
+
+/* Join screen */
+#join-screen{justify-content:center;padding:32px 28px;}
+.join-eyebrow{color:var(--accent);font-size:13px;font-weight:600;margin-bottom:8px;}
+#join-screen h1{font-family:'Fraunces',serif;font-weight:600;font-size:30px;line-height:1.15;margin-bottom:10px;color:var(--text);}
+#join-screen p{color:var(--text-dim);font-size:14px;line-height:1.5;margin-bottom:24px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:6px;}
+.field input{width:100%;background:var(--surface);border:1px solid var(--divider);border-radius:10px;padding:13px 14px;color:var(--text);font-family:'Inter',sans-serif;font-size:15px;outline:none;transition:border-color .15s ease;}
+.field input:focus{border-color:var(--accent);}
+.join-btn{margin-top:8px;width:100%;padding:14px;border:none;border-radius:10px;background:var(--accent);color:#ffffff;font-weight:600;font-size:15px;cursor:pointer;}
+.join-btn:active{transform:scale(.98);}
+.join-btn:disabled{opacity:.4;}
+.join-note{margin-top:14px;font-size:12px;color:var(--text-dim);line-height:1.5;}
+
+/* Thread */
+.thread-header{display:flex;align-items:center;gap:10px;padding:16px;border-bottom:1px solid var(--divider);flex-shrink:0;background:var(--surface);}
+.thread-id{flex:1;min-width:0;}
+.thread-name{font-size:15px;font-weight:600;color:var(--text);}
+.thread-status{font-size:12px;color:var(--text-dim);margin-top:1px;display:flex;align-items:center;gap:5px;}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--online);flex-shrink:0;}
+.icon-btn{background:transparent;border:none;color:var(--text);cursor:pointer;padding:6px;display:flex;align-items:center;justify-content:center;border-radius:50%;}
+.icon-btn:active{background:var(--surface-raised);}
+.leave-btn{background:transparent;border:none;color:var(--text-dim);font-size:13px;cursor:pointer;padding:6px 4px;}
+
+.messages{flex:1;overflow-y:auto;padding:16px 14px 8px;display:flex;flex-direction:column;gap:4px;}
+.empty-state{margin:auto;text-align:center;color:var(--text-dim);font-size:13.5px;padding:0 30px;line-height:1.6;}
+
+.bubble-wrap{display:flex;flex-direction:column;max-width:78%;margin:6px 0;}
+.bubble-wrap.me{align-self:flex-end;align-items:flex-end;}
+.bubble-wrap.them{align-self:flex-start;align-items:flex-start;}
+.sender-label{font-size:11px;color:var(--text-dim);margin:0 4px 3px;}
+
+.bubble{padding:9px 13px;border-radius:16px;font-size:14.5px;line-height:1.4;animation:rise .2s ease both;word-wrap:break-word;box-shadow:var(--shadow);cursor:pointer;}
+.bubble.system{background:transparent;color:var(--text-dim);font-size:12.5px;font-style:italic;padding:2px 4px;box-shadow:none;}
+@keyframes rise{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.bubble-wrap.them .bubble{background:var(--received);border-bottom-left-radius:5px;color:var(--text);}
+.bubble-wrap.me .bubble{background:var(--sent);border-bottom-right-radius:5px;color:var(--sent-text);}
+.bubble-time{font-size:10.5px;color:var(--text-dim);margin:3px 4px 0;}
+
+.reply-quote{border-left:3px solid var(--accent);padding:4px 8px;margin-bottom:6px;font-size:12px;opacity:.85;border-radius:4px;background:rgba(0,0,0,0.04);}
+.bubble-wrap.me .reply-quote{background:rgba(255,255,255,0.15);}
+.reply-quote .who{font-weight:600;}
+
+.bubble img.media-img{max-width:220px;max-height:280px;border-radius:12px;display:block;}
+.voice-row{display:flex;align-items:center;gap:8px;min-width:180px;}
+.voice-row audio{height:34px;max-width:170px;}
+
+.msg-actions{display:flex;gap:10px;margin-top:4px;font-size:11.5px;}
+.msg-actions button{background:none;border:none;color:var(--accent);font-size:11.5px;cursor:pointer;padding:2px 4px;font-weight:600;}
+.msg-actions button.danger{color:var(--danger);}
+
+.reply-preview-bar{display:none;align-items:center;gap:8px;padding:8px 14px;background:var(--surface-raised);border-top:1px solid var(--divider);}
+.reply-preview-bar.show{display:flex;}
+.reply-preview-bar .content{flex:1;min-width:0;font-size:12.5px;border-left:3px solid var(--accent);padding-left:8px;}
+.reply-preview-bar .content .who{font-weight:600;}
+.reply-preview-bar .cancel{background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;padding:2px 6px;}
+
+.composer{display:flex;align-items:center;gap:6px;padding:10px 12px;border-top:1px solid var(--divider);flex-shrink:0;background:var(--surface);}
+.composer input[type="text"]{flex:1;background:var(--surface-raised);border:none;border-radius:20px;padding:11px 16px;color:var(--text);font-size:14.5px;outline:none;}
+.composer input::placeholder{color:var(--text-dim);}
+.composer .icon-btn{color:var(--text-dim);}
+.send-btn{width:38px;height:38px;border-radius:50%;background:var(--accent);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:#fff;}
+.send-btn:disabled{opacity:.35;}
+.send-btn svg{transform:translateX(-1px);}
+.mic-btn.recording{background:var(--danger);color:#fff;border-radius:50%;animation:pulse 1.2s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(200,92,77,.4);}50%{box-shadow:0 0 0 8px rgba(200,92,77,0);}}
+.record-timer{font-size:12px;color:var(--danger);font-weight:600;padding:0 4px;min-width:34px;text-align:center;}
+
+.toast{position:absolute;bottom:78px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--text);color:var(--bg);padding:9px 16px;border-radius:20px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s ease, transform .2s ease;z-index:20;white-space:nowrap;max-width:90%;text-align:center;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+.incoming-call{position:absolute;top:0;left:0;right:0;background:var(--surface-raised);padding:14px 16px;display:none;align-items:center;gap:10px;z-index:15;border-bottom:1px solid var(--divider);}
+.incoming-call.show{display:flex;}
+.incoming-call .info{flex:1;}
+.incoming-call .info .who{font-weight:600;font-size:14px;}
+.incoming-call .info .what{font-size:12px;color:var(--text-dim);}
+.call-action{width:38px;height:38px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.call-action.accept{background:var(--online);color:#0d1a12;}
+.call-action.decline{background:var(--danger);color:#2a0f0a;}
+
+#call-overlay{position:absolute;inset:0;background:#0a0a10;z-index:30;display:none;flex-direction:column;}
+#call-overlay.show{display:flex;}
+.call-status-bar{padding:14px 16px;text-align:center;color:#9498a8;font-size:13px;flex-shrink:0;}
+.video-stage{flex:1;position:relative;background:#000;}
+#remote-video{width:100%;height:100%;object-fit:cover;}
+#local-video{position:absolute;bottom:16px;right:16px;width:96px;height:128px;border-radius:12px;object-fit:cover;background:#1c1e28;border:2px solid rgba(255,255,255,.15);}
+.call-controls{display:flex;justify-content:center;gap:20px;padding:24px 16px 32px;flex-shrink:0;}
+.control-btn{width:56px;height:56px;border-radius:50%;background:#262838;border:none;display:flex;align-items:center;justify-content:center;color:#ededef;cursor:pointer;}
+.control-btn.off{background:#ededef;color:#14151c;}
+.control-btn.hangup{background:var(--danger);color:#fff;}
+
+.messages::-webkit-scrollbar{width:0;}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <div class="screen" id="join-screen">
+    <div class="join-eyebrow">Live chat + calls</div>
+    <h1>Join a room</h1>
+    <p>Messages, voice notes, photos, and calls sync in real time for anyone who joins with the same room code.</p>
+    <div class="field"><label for="name-input">Your name</label><input type="text" id="name-input" placeholder="e.g. Sam" maxlength="24"></div>
+    <div class="field"><label for="room-input">Room code</label><input type="text" id="room-input" placeholder="e.g. porch-light" maxlength="30"></div>
+    <button class="join-btn" id="join-btn" disabled>Join chat</button>
+    <div class="join-note">Room contents are visible to anyone with the code. Calls work best 1-on-1, two people per room.</div>
+  </div>
+
+  <div class="screen" id="thread-screen" style="display:none;">
+    <div class="incoming-call" id="incoming-call">
+      <div class="info"><div class="who" id="caller-name"></div><div class="what">Incoming call</div></div>
+      <button class="call-action decline" id="decline-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a1.005 1.005 0 01-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .27-.11.52-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.5 11.5 0 00-2.66-1.85.999.999 0 01-.56-.9v-3.1A17 17 0 0012 9z" transform="rotate(135 12 12)"/></svg>
+      </button>
+      <button class="call-action accept" id="accept-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+      </button>
+    </div>
+
+    <div class="thread-header">
+      <div class="thread-id">
+        <div class="thread-name" id="room-label"></div>
+        <div class="thread-status"><span class="live-dot"></span><span>Live</span></div>
+      </div>
+      <button class="icon-btn" id="call-btn" title="Start call">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+      </button>
+      <button class="leave-btn" id="leave-btn">Leave</button>
+    </div>
+
+    <div class="messages" id="messages"><div class="empty-state" id="empty-state">No messages yet. Say hi.</div></div>
+
+    <div class="reply-preview-bar" id="reply-preview-bar">
+      <div class="content"><div class="who" id="reply-preview-who"></div><div id="reply-preview-text"></div></div>
+      <button class="cancel" id="reply-cancel-btn">&times;</button>
+    </div>
+
+    <div class="composer">
+      <input type="file" id="image-input" accept="image/*" style="display:none;">
+      <button class="icon-btn" id="attach-btn" title="Send a photo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      </button>
+      <span class="record-timer" id="record-timer" style="display:none;">0:00</span>
+      <input type="text" id="msg-input" placeholder="Message" autocomplete="off" maxlength="500">
+      <button class="icon-btn mic-btn" id="mic-btn" title="Record a voice note">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"/></svg>
+      </button>
+      <button class="send-btn" id="send-btn" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div id="call-overlay">
+    <div class="call-status-bar" id="call-status-bar">Calling…</div>
+    <div class="video-stage">
+      <video id="remote-video" autoplay playsinline></video>
+      <video id="local-video" autoplay playsinline muted></video>
+    </div>
+    <div class="call-controls">
+      <button class="control-btn" id="toggle-mic-btn" title="Mute">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm5-3a5 5 0 01-10 0H5a7 7 0 006 6.92V21h2v-3.08A7 7 0 0019 11h-2z"/></svg>
+      </button>
+      <button class="control-btn" id="toggle-cam-btn" title="Camera">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1v-3.5l4 4v-11l-4 4z"/></svg>
+      </button>
+      <button class="control-btn hangup" id="hangup-btn" title="End call">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a1.005 1.005 0 01-.29-.7c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .27-.11.52-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.5 11.5 0 00-2.66-1.85.999.999 0 01-.56-.9v-3.1A17 17 0 0012 9z"/></svg>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyD88qO_V0WvTKLXBTH0due6mnVnBDIFmn8",
+  authDomain: "crazy-chat-7798.firebaseapp.com",
+  databaseURL: "https://crazy-chat-7798-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "crazy-chat-7798",
+  storageBucket: "crazy-chat-7798.firebasestorage.app",
+  messagingSenderId: "641157425610",
+  appId: "1:641157425610:web:c1a9ae75e42de1e92dc733"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: 'turn:global.relay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:global.relay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:global.relay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+  ]
+};
+
+// ---------- DOM ----------
+const nameInput = document.getElementById('name-input');
+const roomInput = document.getElementById('room-input');
+const joinBtn = document.getElementById('join-btn');
+const joinScreen = document.getElementById('join-screen');
+const threadScreen = document.getElementById('thread-screen');
+const messagesEl = document.getElementById('messages');
+const emptyState = document.getElementById('empty-state');
+const roomLabel = document.getElementById('room-label');
+const input = document.getElementById('msg-input');
+const sendBtn = document.getElementById('send-btn');
+const leaveBtn = document.getElementById('leave-btn');
+const toastEl = document.getElementById('toast');
+const callBtn = document.getElementById('call-btn');
+const incomingCallEl = document.getElementById('incoming-call');
+const callerNameEl = document.getElementById('caller-name');
+const acceptBtn = document.getElementById('accept-btn');
+const declineBtn = document.getElementById('decline-btn');
+const callOverlay = document.getElementById('call-overlay');
+const callStatusBar = document.getElementById('call-status-bar');
+const remoteVideo = document.getElementById('remote-video');
+const localVideo = document.getElementById('local-video');
+const toggleMicBtn = document.getElementById('toggle-mic-btn');
+const toggleCamBtn = document.getElementById('toggle-cam-btn');
+const hangupBtn = document.getElementById('hangup-btn');
+const attachBtn = document.getElementById('attach-btn');
+const imageInput = document.getElementById('image-input');
+const micBtn = document.getElementById('mic-btn');
+const recordTimerEl = document.getElementById('record-timer');
+const replyBar = document.getElementById('reply-preview-bar');
+const replyWhoEl = document.getElementById('reply-preview-who');
+const replyTextEl = document.getElementById('reply-preview-text');
+const replyCancelBtn = document.getElementById('reply-cancel-btn');
+
+let myName = '', room = '';
+let messagesRef = null, callRef = null;
+let pc = null, localStream = null;
+let micOn = true, camOn = true;
+let callActive = false;
+let seenMessageIds = new Set();
+let messagesLoadedOnce = false;
+let replyingTo = null;
+let openActionsId = null;
+
+// ---------- Ringtone / notification tone ----------
+let audioCtx = null;
+let ringtoneTimer = null;
+
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playRingBurst(freq1, freq2, duration){
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime;
+  [freq1, freq2].forEach(freq => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.05);
+    gain.gain.setValueAtTime(0.12, now + duration - 0.1);
+    gain.gain.linearRampToValueAtTime(0.001, now + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration);
+  });
+}
+function startIncomingRingtone(){ stopRingtone(); const r=()=>playRingBurst(480,440,1.6); r(); ringtoneTimer=setInterval(r,2800); }
+function startOutgoingRingback(){ stopRingtone(); const r=()=>playRingBurst(440,480,1.8); r(); ringtoneTimer=setInterval(r,3600); }
+function stopRingtone(){ if(ringtoneTimer){ clearInterval(ringtoneTimer); ringtoneTimer=null; } }
+function playMessageTone(){
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime;
+  [880, 1318.5].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const start = now + i * 0.09;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.linearRampToValueAtTime(0.18, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.25);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + 0.3);
+  });
+}
+
+function sanitizeKey(str){ return str.trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9\-_]/g,'').slice(0,60); }
+function showToast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); setTimeout(()=>toastEl.classList.remove('show'), 2500); }
+function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+function formatTime(ts){ return new Date(ts).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }
+
+function updateJoinBtn(){ joinBtn.disabled = !(nameInput.value.trim() && roomInput.value.trim()); }
+nameInput.addEventListener('input', updateJoinBtn);
+roomInput.addEventListener('input', updateJoinBtn);
+roomInput.addEventListener('keydown', e => { if(e.key==='Enter' && !joinBtn.disabled) joinRoom(); });
+updateJoinBtn();
+
+// ---------- Join / leave ----------
+function joinRoom(){
+  myName = nameInput.value.trim();
+  room = sanitizeKey(roomInput.value);
+  if(!myName || !room) return;
+
+  getAudioCtx();
+
+  roomLabel.textContent = room;
+  joinScreen.style.display = 'none';
+  threadScreen.style.display = 'flex';
+
+  seenMessageIds = new Set();
+  messagesLoadedOnce = false;
+
+  messagesRef = db.ref('rooms/' + room + '/messages');
+  messagesRef.on('value', snap => {
+    const val = snap.val() || {};
+    const arr = Object.entries(val).map(([id, m]) => ({ ...m, _id: id })).sort((a,b) => a.ts - b.ts);
+
+    if(messagesLoadedOnce){
+      arr.forEach(m => { if(!seenMessageIds.has(m._id) && m.from !== myName) playMessageTone(); });
+    }
+    arr.forEach(m => seenMessageIds.add(m._id));
+    messagesLoadedOnce = true;
+
+    renderMessages(arr);
+  });
+
+  callRef = db.ref('rooms/' + room + '/call');
+  callRef.on('value', handleCallStateChange);
+
+  input.focus();
+}
+joinBtn.addEventListener('click', joinRoom);
+
+function leaveRoom(){
+  if(callActive) endCall(true);
+  if(messagesRef) messagesRef.off();
+  if(callRef) callRef.off();
+  threadScreen.style.display = 'none';
+  joinScreen.style.display = 'flex';
+  messagesEl.innerHTML = '';
+  messagesEl.appendChild(emptyState);
+  roomInput.value = '';
+  clearReply();
+  updateJoinBtn();
+}
+leaveBtn.addEventListener('click', leaveRoom);
+
+// ---------- Reply ----------
+function setReply(msg){
+  replyingTo = { from: msg.from, snippet: replySnippet(msg) };
+  replyWhoEl.textContent = msg.from;
+  replyTextEl.textContent = replyingTo.snippet;
+  replyBar.classList.add('show');
+  input.focus();
+}
+function replySnippet(msg){
+  if(msg.type === 'image') return 'Photo';
+  if(msg.type === 'voice') return 'Voice message';
+  return (msg.text || '').slice(0, 60);
+}
+function clearReply(){ replyingTo = null; replyBar.classList.remove('show'); }
+replyCancelBtn.addEventListener('click', clearReply);
+
+// ---------- Message actions (reply / save / delete) ----------
+function toggleActions(id){
+  openActionsId = (openActionsId === id) ? null : id;
+  renderMessages(lastRenderedArr);
+}
+function deleteMessage(id){
+  if(!confirm('Delete this message?')) return;
+  messagesRef.child(id).remove();
+}
+function saveMedia(dataUrl, filename){
+  try{
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }catch(e){
+    showToast("Couldn't save — try a long-press on the media instead");
+  }
+}
+
+// ---------- Rendering ----------
+let lastRenderedArr = [];
+function renderMessages(arr){
+  lastRenderedArr = arr;
+  const wasNearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 80;
+  messagesEl.innerHTML = '';
+  if(arr.length === 0){ messagesEl.appendChild(emptyState); return; }
+  let lastSender = null;
+
+  arr.forEach(m => {
+    if(m.system){
+      const row = document.createElement('div');
+      row.className = 'bubble-wrap them';
+      row.innerHTML = `<div class="bubble system">${escapeHtml(m.text)}</div>`;
+      messagesEl.appendChild(row);
+      return;
+    }
+
+    const isMe = m.from === myName;
+    const wrap = document.createElement('div');
+    wrap.className = 'bubble-wrap ' + (isMe ? 'me' : 'them');
+
+    let inner = '';
+    if(!isMe && m.from !== lastSender) inner += `<div class="sender-label">${escapeHtml(m.from)}</div>`;
+
+    let bodyHtml = '';
+    if(m.replyTo){
+      bodyHtml += `<div class="reply-quote"><div class="who">${escapeHtml(m.replyTo.from)}</div>${escapeHtml(m.replyTo.snippet)}</div>`;
+    }
+
+    if(m.type === 'image'){
+      bodyHtml += `<img class="media-img" src="${m.data}" alt="Shared photo">`;
+    } else if(m.type === 'voice'){
+      bodyHtml += `<div class="voice-row"><audio controls src="${m.data}"></audio></div>`;
+    } else {
+      bodyHtml += escapeHtml(m.text || '');
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = bodyHtml;
+    bubble.addEventListener('click', () => toggleActions(m._id));
+
+    wrap.appendChild(bubble);
+
+    const timeEl = document.createElement('div');
+    timeEl.className = 'bubble-time';
+    timeEl.textContent = formatTime(m.ts);
+    wrap.appendChild(timeEl);
+
+    if(openActionsId === m._id){
+      const actions = document.createElement('div');
+      actions.className = 'msg-actions';
+      let actionsHtml = `<button data-action="reply">Reply</button>`;
+      if(m.type === 'image' || m.type === 'voice') actionsHtml += `<button data-action="save">Save</button>`;
+      if(isMe) actionsHtml += `<button data-action="delete" class="danger">Delete</button>`;
+      actions.innerHTML = actionsHtml;
+      actions.querySelector('[data-action="reply"]').addEventListener('click', (e) => { e.stopPropagation(); setReply(m); openActionsId=null; renderMessages(lastRenderedArr); });
+      const saveBtnEl = actions.querySelector('[data-action="save"]');
+      if(saveBtnEl) saveBtnEl.addEventListener('click', (e) => { e.stopPropagation(); saveMedia(m.data, m.type === 'image' ? 'photo.jpg' : 'voice-message.webm'); });
+      const delBtnEl = actions.querySelector('[data-action="delete"]');
+      if(delBtnEl) delBtnEl.addEventListener('click', (e) => { e.stopPropagation(); deleteMessage(m._id); });
+      wrap.appendChild(actions);
+    }
+
+    if(!m.system) lastSender = m.from;
+    messagesEl.appendChild(wrap);
+  });
+  if(wasNearBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// ---------- Sending: text ----------
+function sendMessage(){
+  const text = input.value.trim();
+  if(!text) return;
+  const payload = { from: myName, text, ts: Date.now() };
+  if(replyingTo) payload.replyTo = replyingTo;
+  messagesRef.push(payload).catch(() => showToast("Couldn't send — try again"));
+  input.value = '';
+  sendBtn.disabled = true;
+  clearReply();
+}
+input.addEventListener('input', () => { sendBtn.disabled = input.value.trim().length === 0; });
+input.addEventListener('keydown', e => { if(e.key === 'Enter') sendMessage(); });
+sendBtn.addEventListener('click', sendMessage);
+
+// ---------- Sending: image ----------
+attachBtn.addEventListener('click', () => imageInput.click());
+imageInput.addEventListener('change', () => {
+  const file = imageInput.files[0];
+  if(!file) return;
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = e => { img.src = e.target.result; };
+  img.onload = () => {
+    const maxDim = 720;
+    let w = img.width, h = img.height;
+    if(w > maxDim || h > maxDim){
+      const scale = maxDim / Math.max(w, h);
+      w = Math.round(w * scale); h = Math.round(h * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+    const payload = { from: myName, type: 'image', data: dataUrl, ts: Date.now() };
+    if(replyingTo) payload.replyTo = replyingTo;
+    messagesRef.push(payload).catch(() => showToast("Couldn't send photo — try again"));
+    clearReply();
+  };
+  reader.readAsDataURL(file);
+  imageInput.value = '';
+});
+
+// ---------- Sending: voice ----------
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordStartTime = 0;
+let recordTimerInterval = null;
+
+micBtn.addEventListener('click', async () => {
+  if(mediaRecorder && mediaRecorder.state === 'recording'){
+    mediaRecorder.stop();
+    return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => { if(e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      clearInterval(recordTimerInterval);
+      recordTimerEl.style.display = 'none';
+      micBtn.classList.remove('recording');
+      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+      if(blob.size < 300){ return; } // too short / accidental tap
+      const reader = new FileReader();
+      reader.onload = () => {
+        const payload = { from: myName, type: 'voice', data: reader.result, ts: Date.now() };
+        if(replyingTo) payload.replyTo = replyingTo;
+        messagesRef.push(payload).catch(() => showToast("Couldn't send voice note — try again"));
+        clearReply();
+      };
+      reader.readAsDataURL(blob);
+    };
+    mediaRecorder.start();
+    micBtn.classList.add('recording');
+    recordStartTime = Date.now();
+    recordTimerEl.style.display = 'inline-block';
+    recordTimerInterval = setInterval(() => {
+      const secs = Math.floor((Date.now() - recordStartTime) / 1000);
+      const m = Math.floor(secs / 60), s = secs % 60;
+      recordTimerEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+      if(secs >= 60) mediaRecorder.stop(); // cap at 60s
+    }, 250);
+  }catch(e){
+    showToast("Couldn't access microphone — check permissions");
+  }
+});
+
+// ---------- Calling ----------
+callBtn.addEventListener('click', () => startCall());
+
+async function startCall(){
+  if(callActive) return;
+  try{
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+  }catch(e){
+    showToast("Couldn't access camera/mic — check permissions");
+    return;
+  }
+  openCallOverlay(true);
+  pc = new RTCPeerConnection(ICE_SERVERS);
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  wireRemoteTrack();
+  pc.onicecandidate = e => { if(e.candidate) callRef.child('callerCandidates').push(e.candidate.toJSON()); };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await callRef.set({ status: 'ringing', caller: myName, offer: { sdp: offer.sdp, type: offer.type } });
+  callStatusBar.textContent = 'Calling…';
+  startOutgoingRingback();
+}
+
+let handledCallerCandidatesRef = null, handledCalleeCandidatesRef = null;
+
+async function handleCallStateChange(snap){
+  const data = snap.val();
+  if(!data || data.status === 'ended' || data.status === undefined){
+    stopRingtone();
+    if(callActive) cleanupCall();
+    incomingCallEl.classList.remove('show');
+    return;
+  }
+
+  if(data.status === 'ringing' && data.caller !== myName && !callActive && !pc){
+    callerNameEl.textContent = data.caller;
+    incomingCallEl.classList.add('show');
+    window._pendingOffer = data.offer;
+    startIncomingRingtone();
+    return;
+  }
+
+  if(data.status === 'connected' && data.answer && pc && pc.signalingState !== 'stable' && !pc.currentRemoteDescription){
+    stopRingtone();
+    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    callStatusBar.textContent = 'Connected';
+    listenForCandidates('calleeCandidates');
+  }
+}
+
+acceptBtn.addEventListener('click', async () => {
+  stopRingtone();
+  incomingCallEl.classList.remove('show');
+  const offer = window._pendingOffer;
+  if(!offer) return;
+  try{
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+  }catch(e){
+    showToast("Couldn't access camera/mic — check permissions");
+    return;
+  }
+  openCallOverlay(false);
+  pc = new RTCPeerConnection(ICE_SERVERS);
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  wireRemoteTrack();
+  pc.onicecandidate = e => { if(e.candidate) callRef.child('calleeCandidates').push(e.candidate.toJSON()); };
+
+  await pc.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer = await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  await callRef.update({ status: 'connected', answer: { sdp: answer.sdp, type: answer.type } });
+  callStatusBar.textContent = 'Connected';
+  listenForCandidates('callerCandidates');
+});
+
+declineBtn.addEventListener('click', () => {
+  stopRingtone();
+  incomingCallEl.classList.remove('show');
+  callRef.set(null);
+  window._pendingOffer = null;
+});
+
+function listenForCandidates(childPath){
+  const ref = callRef.child(childPath);
+  ref.on('child_added', snap => {
+    const cand = snap.val();
+    if(pc && cand) pc.addIceCandidate(new RTCIceCandidate(cand)).catch(()=>{});
+  });
+  if(childPath === 'callerCandidates') handledCallerCandidatesRef = ref;
+  else handledCalleeCandidatesRef = ref;
+}
+
+function wireRemoteTrack(){
+  const remoteStream = new MediaStream();
+  remoteVideo.srcObject = remoteStream;
+  pc.ontrack = e => { e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t)); };
+}
+
+function openCallOverlay(isCaller){
+  callActive = true;
+  micOn = true; camOn = true;
+  toggleMicBtn.classList.remove('off');
+  toggleCamBtn.classList.remove('off');
+  localVideo.srcObject = localStream;
+  callOverlay.classList.add('show');
+  callStatusBar.textContent = isCaller ? 'Calling…' : 'Connecting…';
+}
+
+toggleMicBtn.addEventListener('click', () => {
+  if(!localStream) return;
+  micOn = !micOn;
+  localStream.getAudioTracks().forEach(t => t.enabled = micOn);
+  toggleMicBtn.classList.toggle('off', !micOn);
+});
+toggleCamBtn.addEventListener('click', () => {
+  if(!localStream) return;
+  camOn = !camOn;
+  localStream.getVideoTracks().forEach(t => t.enabled = camOn);
+  toggleCamBtn.classList.toggle('off', !camOn);
+});
+hangupBtn.addEventListener('click', () => endCall(false));
+
+function endCall(silent){
+  if(callRef) callRef.set(null).catch(()=>{});
+  cleanupCall();
+  if(!silent) showToast('Call ended');
+}
+
+function cleanupCall(){
+  stopRingtone();
+  callActive = false;
+  if(pc){ pc.close(); pc = null; }
+  if(localStream){ localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  if(handledCallerCandidatesRef){ handledCallerCandidatesRef.off(); handledCallerCandidatesRef = null; }
+  if(handledCalleeCandidatesRef){ handledCalleeCandidatesRef.off(); handledCalleeCandidatesRef = null; }
+  callOverlay.classList.remove('show');
+  remoteVideo.srcObject = null;
+  localVideo.srcObject = null;
+}
+</script>
+
+</body>
+</html>

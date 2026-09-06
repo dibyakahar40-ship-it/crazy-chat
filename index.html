@@ -255,7 +255,12 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
+
+// Force persistence to LOCAL so iOS does not discard auth tokens across reloads
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
 const googleProvider = new firebase.auth.GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 const ICE_SERVERS = {
   iceServers: [
@@ -358,27 +363,43 @@ function escapeHtml(str){ const d=document.createElement('div'); d.textContent=s
 function formatTime(ts){ return new Date(ts).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }
 
 // ---------- Auth ----------
-googleSigninBtn.addEventListener('click', () => {
+googleSigninBtn.addEventListener('click', async () => {
   getAudioCtx();
-  auth.signInWithRedirect(googleProvider);
+  try {
+    const result = await auth.signInWithPopup(googleProvider);
+    if(result && result.user) {
+      handleUserLogin(result.user);
+    }
+  } catch(error) {
+    alert("Auth Error:\n" + error.code + "\n" + error.message);
+  }
 });
+
 signoutBtn.addEventListener('click', () => {
   if(convoListRef) convoListRef.off();
   auth.signOut();
 });
 
-auth.onAuthStateChanged(async user => {
+function handleUserLogin(user) {
+  myUid = user.uid;
+  myName = user.displayName || user.email || 'Someone';
+  myPhoto = user.photoURL || '';
+
+  myAvatarEl.src = myPhoto;
+  signinScreen.style.display = 'none';
+  threadScreen.style.display = 'none';
+  listScreen.style.display = 'flex';
+  listenToConversations();
+
+  db.ref('users/' + myUid).set({ name: myName, email: user.email || '', photo: myPhoto, lastSeen: Date.now() }).catch(e => console.error(e));
+  if(user.email) {
+    db.ref('emailIndex/' + emailKey(user.email)).set(myUid).catch(e => console.error(e));
+  }
+}
+
+auth.onAuthStateChanged(user => {
   if(user){
-    myUid = user.uid;
-    myName = user.displayName || user.email || 'Someone';
-    myPhoto = user.photoURL || '';
-    await db.ref('users/' + myUid).set({ name: myName, email: user.email || '', photo: myPhoto, lastSeen: Date.now() });
-    if(user.email) await db.ref('emailIndex/' + emailKey(user.email)).set(myUid);
-    myAvatarEl.src = myPhoto;
-    signinScreen.style.display = 'none';
-    threadScreen.style.display = 'none';
-    listScreen.style.display = 'flex';
-    listenToConversations();
+    handleUserLogin(user);
   } else {
     signinScreen.style.display = 'flex';
     listScreen.style.display = 'none';
@@ -771,4 +792,3 @@ function cleanupCall(){
 
 </body>
 </html>
- 

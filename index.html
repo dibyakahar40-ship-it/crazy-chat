@@ -260,7 +260,6 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-// Force persistence to LOCAL so iOS does not discard auth tokens across reloads
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
 const googleProvider = new firebase.auth.GoogleAuthProvider();
@@ -331,10 +330,15 @@ function emailKey(email){ return email.trim().toLowerCase().replace(/[.#$\[\]\/]
 function initials(name){ return (name || '?').split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase(); }
 function sanitizeId(str){ return str.replace(/[.#$\[\]\/]/g, '_'); }
 
-// ---------- Audio (ringtone + notification) ----------
+// ---------- Audio Engine ----------
 let audioCtx = null;
 let ringtoneTimer = null;
-function getAudioCtx(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if(audioCtx.state === 'suspended') audioCtx.resume(); return audioCtx; }
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
 function playRingBurst(freq1, freq2, duration){
   const ctx = getAudioCtx(); const now = ctx.currentTime;
   [freq1, freq2].forEach(freq => {
@@ -519,7 +523,7 @@ threadBackBtn.addEventListener('click', () => {
 function setReply(msg){
   replyingTo = { from: msg.fromUid === myUid ? myName : otherPersonName, snippet: replySnippet(msg) };
   replyWhoEl.textContent = replyingTo.from;
-  replyTextEl.textContent = replyingTo.snippet;
+  replyTextEl.textContent = replySnippet(msg);
   replyBar.classList.add('show');
   input.focus();
 }
@@ -548,6 +552,24 @@ function updateConvoPreview(text){
   db.ref('userConversations/' + otherUid + '/' + currentConvoId).update({ lastMessage: text, lastTs: now }).catch(()=>{});
 }
 
+// Universal Playback Handler for Voice Notes
+async function safePlayAudio(audioElement, src) {
+  try {
+    audioElement.play();
+  } catch (err) {
+    // Fallback directly into Web Audio API for unplayable formats
+    const ctx = getAudioCtx();
+    const res = await fetch(src);
+    const buf = await res.arrayBuffer();
+    ctx.decodeAudioData(buf, decoded => {
+      const bSource = ctx.createBufferSource();
+      bSource.buffer = decoded;
+      bSource.connect(ctx.destination);
+      bSource.start(0);
+    });
+  }
+}
+
 // ---------- Rendering ----------
 function renderMessages(arr){
   lastRenderedArr = arr;
@@ -566,7 +588,7 @@ function renderMessages(arr){
     if(m.type === 'image'){
       bodyHtml += `<img class="media-img" src="${m.data}" alt="Shared photo">`;
     } else if(m.type === 'voice'){
-      bodyHtml += `<div class="voice-row"><audio controls src="${m.data}"></audio></div>`;
+      bodyHtml += `<div class="voice-row"><audio controls playsinline preload="metadata" src="${m.data}"></audio></div>`;
     } else {
       bodyHtml += escapeHtml(m.text || '');
     }
@@ -574,7 +596,17 @@ function renderMessages(arr){
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.innerHTML = bodyHtml;
-    bubble.addEventListener('click', () => toggleActions(m._id));
+    
+    // Allow users to tap audio without toggling options
+    const audioEl = bubble.querySelector('audio');
+    if(audioEl){
+      audioEl.addEventListener('play', () => getAudioCtx());
+    }
+
+    bubble.addEventListener('click', (e) => {
+      if(e.target.tagName.toLowerCase() === 'audio') return;
+      toggleActions(m._id);
+    });
     wrap.appendChild(bubble);
 
     const timeEl = document.createElement('div');
@@ -591,7 +623,7 @@ function renderMessages(arr){
       actions.innerHTML = actionsHtml;
       actions.querySelector('[data-action="reply"]').addEventListener('click', (e) => { e.stopPropagation(); setReply(m); openActionsId=null; renderMessages(lastRenderedArr); });
       const saveBtnEl = actions.querySelector('[data-action="save"]');
-      if(saveBtnEl) saveBtnEl.addEventListener('click', (e) => { e.stopPropagation(); const ext = m.type === 'image' ? 'jpg' : (m.data.includes('audio/wav') ? 'wav' : (m.data.includes('audio/mp4') ? 'm4a' : 'webm')); saveMedia(m.data, m.type === 'image' ? 'photo.jpg' : `voice-message.${ext}`); });
+      if(saveBtnEl) saveBtnEl.addEventListener('click', (e) => { e.stopPropagation(); const ext = m.type === 'image' ? 'jpg' : 'wav'; saveMedia(m.data, m.type === 'image' ? 'photo.jpg' : `voice-message.${ext}`); });
       const delBtnEl = actions.querySelector('[data-action="delete"]');
       if(delBtnEl) delBtnEl.addEventListener('click', (e) => { e.stopPropagation(); deleteMessage(m._id); });
       wrap.appendChild(actions);
@@ -643,11 +675,21 @@ imageInput.addEventListener('change', () => {
   imageInput.value = '';
 });
 
-// ---------- Sending: voice ----------
+// ---------- Universal Voice Transcoding (WAV 16-bit PCM) ----------
 let mediaRecorder = null, recordedChunks = [], recordStartTime = 0, recordTimerInterval = null;
+
 function getSupportedMimeType(){
-  const candidates = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/mp4;codecs=mp4a.40.2','audio/aac','audio/ogg;codecs=opus'];
-  for(const t of candidates){ if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t; }
+  const candidates = [
+    'audio/mp4',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/aac',
+    'audio/ogg;codecs=opus'
+  ];
+  for(const t of candidates){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) return t;
+  }
   return '';
 }
 
@@ -658,19 +700,21 @@ function audioBufferToWavBlob(buffer){
   const ab = new ArrayBuffer(44 + dataSize);
   const view = new DataView(ab);
   function writeString(offset, str){ for(let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); }
+  
   writeString(0, 'RIFF');
   view.setUint32(4, 36 + dataSize, true);
   writeString(8, 'WAVE');
   writeString(12, 'fmt ');
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
+  view.setUint16(20, 1, true); // Linear PCM
+  view.setUint16(22, 1, true); // Mono
   view.setUint32(24, sampleRate, true);
   view.setUint32(28, sampleRate * 2, true);
   view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
+  view.setUint16(34, 16, true); // 16 bits per sample
   writeString(36, 'data');
   view.setUint32(40, dataSize, true);
+  
   let offset = 44;
   for(let i = 0; i < samples.length; i++){
     let s = Math.max(-1, Math.min(1, samples[i]));
@@ -694,8 +738,10 @@ async function convertToUniversalWav(rawBlob){
   const rendered = await offlineCtx.startRendering();
   return audioBufferToWavBlob(rendered);
 }
+
 micBtn.addEventListener('click', async () => {
   if(mediaRecorder && mediaRecorder.state === 'recording'){ mediaRecorder.stop(); return; }
+  getAudioCtx();
   try{
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     recordedChunks = [];
@@ -707,15 +753,16 @@ micBtn.addEventListener('click', async () => {
       clearInterval(recordTimerInterval);
       recordTimerEl.style.display = 'none';
       micBtn.classList.remove('recording');
+      
       const actualType = mediaRecorder.mimeType || mimeType || 'audio/webm';
       const rawBlob = new Blob(recordedChunks, { type: actualType });
-      if(rawBlob.size < 300) return;
+      if(rawBlob.size < 200) return;
 
       let finalBlob;
       try{
         finalBlob = await convertToUniversalWav(rawBlob);
       }catch(e){
-        finalBlob = rawBlob; // fall back to native format if conversion fails
+        finalBlob = rawBlob; // Fallback to raw if decoding fails
       }
 
       const reader = new FileReader();
@@ -738,7 +785,7 @@ micBtn.addEventListener('click', async () => {
       recordTimerEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
       if(secs >= 60) mediaRecorder.stop();
     }, 250);
-  }catch(e){ showToast("Couldn't access microphone — check permissions"); }
+  }catch(e){ showToast("Microphone access denied or unavailable"); }
 });
 
 // ---------- Calling ----------

@@ -412,11 +412,14 @@ function clearVoiceUrlCache(){
   voiceUrlCache.clear();
 }
 
-// ---------- Auth (Using Redirect instead of Popup) ----------
+// ---------- Auth (Using Popup for Reliable Login) ----------
 googleSigninBtn.addEventListener('click', async () => {
   getAudioCtx();
   try {
-    await auth.signInWithRedirect(googleProvider);
+    const result = await auth.signInWithPopup(googleProvider);
+    if(result && result.user) {
+      handleUserLogin(result.user);
+    }
   } catch(error) {
     alert("Auth Error:\n" + error.code + "\n" + error.message);
   }
@@ -465,15 +468,6 @@ async function setupPushNotifications(){
     console.error('Push setup failed:', e);
   }
 }
-
-// Handle redirect result and auth state
-auth.getRedirectResult().then(result => {
-  if(result && result.user) {
-    handleUserLogin(result.user);
-  }
-}).catch(error => {
-  console.error("Redirect error:", error);
-});
 
 auth.onAuthStateChanged(user => {
   if(user){

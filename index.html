@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CrazyChatAI</title>
+  <title>CrazyChatAI - Video & Chat</title>
   <style>
     * {
       margin: 0;
@@ -21,17 +21,13 @@
       overflow: hidden;
     }
 
-    /* App Shell Container */
     #app {
       width: 100%;
       height: 100%;
       display: flex;
       flex-direction: column;
-      backdrop-filter: blur(2px);
-      -webkit-backdrop-filter: blur(2px);
     }
 
-    /* --- AUTH / SIGN-IN VIEW --- */
     .view {
       flex: 1;
       display: flex;
@@ -54,17 +50,8 @@
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
 
-    .signin-container h1 {
-      color: #ffffff;
-      font-size: 26px;
-      margin-bottom: 12px;
-    }
-
-    .signin-container p {
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 14px;
-      margin-bottom: 30px;
-    }
+    .signin-container h1 { color: #ffffff; font-size: 26px; margin-bottom: 12px; }
+    .signin-container p { color: rgba(255, 255, 255, 0.7); font-size: 14px; margin-bottom: 30px; }
 
     .google-btn {
       background-color: #ffffff;
@@ -75,173 +62,96 @@
       width: 100%;
       font-size: 16px;
       font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
 
-    /* --- CHAT LIST VIEW --- */
+    /* Chats List View */
+    #listView { display: none; flex-direction: column; padding: 0; justify-content: flex-start; }
     .chats-header {
       background-color: rgba(18, 18, 24, 0.85);
       backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       padding: 16px 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      width: 100%;
     }
+    .chats-header h2 { font-size: 22px; color: #ffffff; }
 
-    .chats-header h2 {
-      font-size: 22px;
-      color: #ffffff;
-    }
-
-    .chat-list {
-      flex: 1;
-      overflow-y: auto;
-    }
-
+    .chat-list { flex: 1; width: 100%; overflow-y: auto; }
     .chat-item {
       background-color: rgba(30, 30, 40, 0.70);
       backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       padding: 14px 20px;
       display: flex;
       align-items: center;
       cursor: pointer;
-      transition: background 0.2s;
     }
-
-    .chat-item:hover {
-      background-color: rgba(50, 50, 60, 0.85);
-    }
+    .chat-item:hover { background-color: rgba(50, 50, 60, 0.85); }
 
     .avatar {
-      width: 45px;
-      height: 45px;
-      border-radius: 50%;
-      background: #7c3aed;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      color: white;
-      margin-right: 15px;
+      width: 45px; height: 45px; border-radius: 50%;
+      background: #7c3aed; display: flex; align-items: center;
+      justify-content: center; font-weight: bold; color: white; margin-right: 15px;
     }
+    .chat-info h4 { color: #f3f4f6; font-size: 16px; margin-bottom: 4px; }
+    .chat-info p { color: rgba(255, 255, 255, 0.6); font-size: 13px; }
 
-    .chat-info h4 {
-      color: #f3f4f6;
-      font-size: 16px;
-      margin-bottom: 4px;
-    }
-
-    .chat-info p {
-      color: rgba(255, 255, 255, 0.6);
-      font-size: 13px;
-    }
-
-    /* --- ACTIVE CHAT ROOM VIEW --- */
-    .chat-room {
-      display: none;
-      flex-direction: column;
-      height: 100%;
-    }
-
+    /* Active Chat Room View */
+    .chat-room { display: none; flex-direction: column; height: 100%; width: 100%; }
     .room-header {
       background-color: rgba(18, 18, 24, 0.85);
       backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
       padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
-
-    .back-btn {
-      background: none;
-      border: none;
-      color: #a78bfa;
-      font-size: 16px;
-      cursor: pointer;
-      font-weight: 600;
-    }
+    .back-btn { background: none; border: none; color: #a78bfa; font-size: 16px; cursor: pointer; font-weight: 600; }
+    .call-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #fff; }
 
     .messages-container {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
+      flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;
     }
-
     .message {
-      max-width: 75%;
-      padding: 10px 14px;
-      border-radius: 16px;
-      font-size: 14px;
-      line-height: 1.4;
+      max-width: 75%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.4;
       backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
     }
-
-    .message.user {
-      background-color: rgba(147, 51, 234, 0.80);
-      color: #ffffff;
-      align-self: flex-end;
-      border-bottom-right-radius: 4px;
-    }
-
-    .message.ai {
-      background-color: rgba(30, 30, 40, 0.75);
-      color: #f3f4f6;
-      align-self: flex-start;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-bottom-left-radius: 4px;
-    }
+    .message.user { background-color: rgba(147, 51, 234, 0.80); color: #ffffff; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .message.ai { background-color: rgba(30, 30, 40, 0.75); color: #f3f4f6; align-self: flex-start; border: 1px solid rgba(255, 255, 255, 0.1); border-bottom-left-radius: 4px; }
 
     .input-bar {
       background-color: rgba(18, 18, 24, 0.85);
       backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      padding: 12px 16px;
-      display: flex;
-      gap: 10px;
+      padding: 12px 16px; display: flex; gap: 10px;
       border-top: 1px solid rgba(255, 255, 255, 0.08);
     }
-
     .input-bar input {
-      flex: 1;
-      background-color: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 20px;
-      padding: 10px 16px;
-      color: #fff;
-      outline: none;
+      flex: 1; background-color: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px; padding: 10px 16px; color: #fff; outline: none;
     }
-
-    .input-bar input::placeholder {
-      color: rgba(255, 255, 255, 0.4);
-    }
-
     .send-btn {
-      background-color: #7c3aed;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 40px;
-      height: 40px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
+      background-color: #7c3aed; color: white; border: none; border-radius: 50%;
+      width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold;
     }
+
+    /* Video Call Overlay (WebRTC) */
+    #videoOverlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(10, 10, 15, 0.95); display: none; flex-direction: column; z-index: 100;
+    }
+    .video-grid { flex: 1; display: grid; grid-template-rows: 1fr 1fr; gap: 10px; padding: 15px; position: relative; }
+    video { width: 100%; height: 100%; object-fit: cover; border-radius: 16px; background: #000; border: 1px solid rgba(255,255,255,0.1); }
+    .video-controls {
+      padding: 20px; display: flex; justify-content: center; gap: 20px; background: rgba(18, 18, 24, 0.9);
+    }
+    .control-btn {
+      padding: 12px 24px; border-radius: 30px; border: none; font-weight: 600; cursor: pointer; color: white;
+    }
+    .hangup-btn { background-color: #dc2626; }
+    .mute-btn { background-color: #4b5563; }
   </style>
 </head>
 <body>
@@ -252,13 +162,13 @@
       <div class="signin-container">
         <h2 style="color: #fbbf24; font-size: 13px; text-transform: uppercase; margin-bottom: 6px;">Crazy Chat</h2>
         <h1>Sign in to start</h1>
-        <p>Sign in to message your AI assistant and connect with peers instantly.</p>
+        <p>Sign in with Google to message your AI assistant and launch video calls.</p>
         <button class="google-btn" onclick="app.login()">Sign in with Google</button>
       </div>
     </div>
 
-    <!-- VIEW 2: CHAT LIST -->
-    <div id="listView" class="view" style="display: none; padding: 0;">
+    <!-- VIEW 2: CHATS LIST -->
+    <div id="listView" class="view">
       <div class="chats-header">
         <h2>Chats</h2>
         <span style="font-size: 13px; color: #a78bfa;">● Live</span>
@@ -268,7 +178,7 @@
           <div class="avatar" style="background: linear-gradient(135deg, #7c3aed, #db2777);">C</div>
           <div class="chat-info">
             <h4>CrazyChatAI</h4>
-            <p>Tap to chat with your AI assistant</p>
+            <p>AI Assistant & Instant Chat</p>
           </div>
         </div>
       </div>
@@ -279,10 +189,10 @@
       <div class="room-header">
         <button class="back-btn" onclick="app.backToList()">← Back</button>
         <h3 id="roomTitle">CrazyChatAI</h3>
-        <span>📞</span>
+        <button class="call-btn" onclick="app.startVideoCall()" title="Start Video Call">📞</button>
       </div>
       <div class="messages-container" id="messagesContainer">
-        <div class="message ai">Hello! I am CrazyChatAI. How can I help you code or test today?</div>
+        <div class="message ai">Hello! I am CrazyChatAI. Ready for text chat or video calls!</div>
       </div>
       <div class="input-bar">
         <input type="text" id="messageInput" placeholder="Message..." onkeypress="if(event.key==='Enter') app.sendMessage()">
@@ -291,16 +201,35 @@
     </div>
   </div>
 
+  <!-- VIDEO CALL OVERLAY (WebRTC P2P) -->
+  <div id="videoOverlay">
+    <div class="video-grid">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <video id="localVideo" autoplay playsinline muted></video>
+    </div>
+    <div class="video-controls">
+      <button class="control-btn mute-btn" onclick="app.toggleMute()">Mute</button>
+      <button class="control-btn hangup-btn" onclick="app.endVideoCall()">End Call</button>
+    </div>
+  </div>
+
+  <!-- Firebase SDKs for WebRTC signaling -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
   <script>
-    const WORKER_URL = "https://crazychatai.dibyakahar40.workers.dev"; // Your Cloudflare Worker endpoint
+    const WORKER_URL = "https://crazychatai.dibyakahar40.workers.dev";
 
     class CrazyChatApp {
       constructor() {
         this.history = [];
+        this.localStream = null;
+        this.remoteStream = null;
+        this.pc = null;
+        this.rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
       }
 
       login() {
-        // Simulated Google Auth transition for UI demonstration
         document.getElementById('authView').style.display = 'none';
         document.getElementById('listView').style.display = 'flex';
       }
@@ -321,15 +250,12 @@
         if (!text) return;
 
         const container = document.getElementById('messagesContainer');
-        
-        // Append User Message
-        container.innerHTML += `<div class="message user">${this. escapeHTML(text)}</div>`;
+        container.innerHTML += `<div class="message user">${this.escapeHTML(text)}</div>`;
         input.value = '';
         container.scrollTop = container.scrollHeight;
 
         this.history.push({ role: "user", text: text });
 
-        // Append Placeholder AI Response
         const aiMsgId = 'ai-msg-' + Date.now();
         container.innerHTML += `<div class="message ai" id="${aiMsgId}">Thinking...</div>`;
         container.scrollTop = container.scrollHeight;
@@ -349,6 +275,43 @@
           document.getElementById(aiMsgId).innerText = "Error connecting to AI backend.";
         }
         container.scrollTop = container.scrollHeight;
+      }
+
+      async startVideoCall() {
+        document.getElementById('videoOverlay').style.display = 'flex';
+        try {
+          this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          document.getElementById('localVideo').srcObject = this.localStream;
+
+          this.pc = new RTCPeerConnection(this.rtcConfig);
+          this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream));
+
+          this.pc.ontrack = event => {
+            document.getElementById('remoteVideo').srcObject = event.streams[0];
+          };
+
+          // WebRTC signaling setup via Firebase can be hooked here for peer connections
+        } catch (e) {
+          alert("Could not access camera/microphone for video call.");
+          this.endVideoCall();
+        }
+      }
+
+      endVideoCall() {
+        if (this.localStream) {
+          this.localStream.getTracks().forEach(track => track.stop());
+        }
+        if (this.pc) {
+          this.pc.close();
+        }
+        document.getElementById('videoOverlay').style.display = 'none';
+      }
+
+      toggleMute() {
+        if (this.localStream) {
+          const audioTrack = this.localStream.getAudioTracks()[0];
+          audioTrack.enabled = !audioTrack.enabled;
+        }
       }
 
       escapeHTML(str) {

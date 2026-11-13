@@ -270,20 +270,24 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-// Force persistence to LOCAL so iOS does not discard auth tokens across reloads
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
+// Open Relay Project free public TURN servers (20 GB/month free quota)
 const ICE_SERVERS = {
   iceServers: [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-    { urls: 'stun:stun.relay.metered.ca:80' },
-    { urls: 'turn:global.relay.metered.ca:80', username: '5b8bb448fa637eba6791aa05', credential: 'r+urCOuT5FXny8xr' },
-    { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '5b8bb448fa637eba6791aa05', credential: 'r+urCOuT5FXny8xr' },
-    { urls: 'turn:global.relay.metered.ca:443', username: '5b8bb448fa637eba6791aa05', credential: 'r+urCOuT5FXny8xr' },
-    { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '5b8bb448fa637eba6791aa05', credential: 'r+urCOuT5FXny8xr' }
+    { 
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turns:openrelay.metered.ca:443?transport=tcp'
+      ], 
+      username: 'openrelayproject@gmail.com', 
+      credential: 'openrelayproject' 
+    }
   ]
 };
 
@@ -339,7 +343,6 @@ let lastRenderedArr = [];
 
 function emailKey(email){ return email.trim().toLowerCase().replace(/[.#$\[\]\/]/g, ','); }
 function initials(name){ return (name || '?').split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase(); }
-function sanitizeId(str){ return str.replace(/[.#$\[\]\/]/g, '_'); }
 
 // ---------- Audio (ringtone + notification) ----------
 let audioCtx = null;
@@ -393,12 +396,26 @@ function getVoiceObjectUrl(m){
     voiceUrlCache.set(m._id, url);
     return url;
   }catch(e){
-    return m.data; // fall back to the raw data URI if conversion fails
+    return m.data;
   }
 }
 function clearVoiceUrlCache(){
   voiceUrlCache.forEach(url => URL.revokeObjectURL(url));
   voiceUrlCache.clear();
+}
+
+// ---------- AI Assistant Contact Constants ----------
+const AI_WORKER_URL = 'https://crazychatai.dibyakahar40.workers.dev';
+const AI_UID = 'ai-assistant';
+const AI_NAME = 'CrazyChatAI';
+let aiTyping = false;
+function aiConvoId(){ return 'ai_' + myUid; }
+function isAiConvo(){ return currentConvoId === aiConvoId(); }
+function setAiMode(on){
+  callBtn.style.display = on ? 'none' : '';
+  attachBtn.style.display = on ? 'none' : '';
+  micBtn.style.display = on ? 'none' : '';
+  input.placeholder = on ? 'Ask CrazyChatAI anything' : 'Message';
 }
 
 // ---------- Auth ----------
@@ -477,23 +494,11 @@ function listenToConversations(){
     renderConvoList(arr);
   });
 }
-// ---------- AI Assistant contact ----------
-const AI_WORKER_URL = 'https://crazychatai.dibyakahar40.workers.dev';
-const AI_UID = 'ai-assistant';
-const AI_NAME = 'CrazyChatAI';
-let aiTyping = false;
-function aiConvoId(){ return 'ai_' + myUid; }
-function isAiConvo(){ return currentConvoId === aiConvoId(); }
-function setAiMode(on){
-  callBtn.style.display = on ? 'none' : '';
-  attachBtn.style.display = on ? 'none' : '';
-  micBtn.style.display = on ? 'none' : '';
-  input.placeholder = on ? 'Ask CrazyChatAI anything' : 'Message';
-}
 
 function renderConvoList(arr){
   convoListEl.innerHTML = '';
 
+  // AI Assistant Row
   const aiRow = document.createElement('div');
   aiRow.className = 'convo-row';
   aiRow.innerHTML = `<div class="convo-avatar" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:15px;">AI</div><div class="convo-meta"><div class="convo-name">${AI_NAME}</div><div class="convo-preview">Ask me anything</div></div>`;
@@ -706,7 +711,7 @@ function renderMessages(arr){
   if(wasNearBottom || aiTyping) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// ---------- Sending: text ----------
+// ---------- Sending: text & AI interaction ----------
 function sendMessage(){
   const text = input.value.trim();
   if(!text || !currentConvoId) return;
@@ -751,6 +756,7 @@ async function askAi(priorMessages, newText){
     showToast("CrazyChatAI couldn't reply — try again");
   }
 }
+
 input.addEventListener('input', () => { sendBtn.disabled = input.value.trim().length === 0; });
 input.addEventListener('keydown', e => { if(e.key === 'Enter') sendMessage(); });
 sendBtn.addEventListener('click', sendMessage);
@@ -832,6 +838,7 @@ async function convertToUniversalWav(rawBlob){
   const rendered = await offlineCtx.startRendering();
   return audioBufferToWavBlob(rendered);
 }
+
 micBtn.addEventListener('click', async () => {
   if(mediaRecorder && mediaRecorder.state === 'recording'){ mediaRecorder.stop(); return; }
   try{
@@ -853,7 +860,7 @@ micBtn.addEventListener('click', async () => {
       try{
         finalBlob = await convertToUniversalWav(rawBlob);
       }catch(e){
-        finalBlob = rawBlob; // fall back to native format if conversion fails
+        finalBlob = rawBlob;
       }
 
       const reader = new FileReader();

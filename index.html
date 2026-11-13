@@ -275,7 +275,6 @@ auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-// Open Relay Project free public TURN servers (20 GB/month free quota)
 const ICE_SERVERS = {
   iceServers: [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
@@ -498,7 +497,6 @@ function listenToConversations(){
 function renderConvoList(arr){
   convoListEl.innerHTML = '';
 
-  // AI Assistant Row
   const aiRow = document.createElement('div');
   aiRow.className = 'convo-row';
   aiRow.innerHTML = `<div class="convo-avatar" style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff;font-size:15px;">AI</div><div class="convo-meta"><div class="convo-name">${AI_NAME}</div><div class="convo-preview">Ask me anything</div></div>`;
@@ -886,7 +884,7 @@ micBtn.addEventListener('click', async () => {
   }catch(e){ showToast("Couldn't access microphone — check permissions"); }
 });
 
-// ---------- Calling ----------
+// ---------- Calling (With Auto ICE Restart Recovery) ----------
 callBtn.addEventListener('click', () => startCall());
 
 async function startCall(){
@@ -898,6 +896,7 @@ async function startCall(){
   pc = new RTCPeerConnection(ICE_SERVERS);
   localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
   wireRemoteTrack();
+  setupPeerConnectionEvents();
   pc.onicecandidate = e => { if(e.candidate) callRef.child('callerCandidates').push(e.candidate.toJSON()); };
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
@@ -943,6 +942,7 @@ acceptBtn.addEventListener('click', async () => {
   pc = new RTCPeerConnection(ICE_SERVERS);
   localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
   wireRemoteTrack();
+  setupPeerConnectionEvents();
   pc.onicecandidate = e => { if(e.candidate) callRef.child('calleeCandidates').push(e.candidate.toJSON()); };
   await pc.setRemoteDescription(new RTCSessionDescription(offer));
   const answer = await pc.createAnswer();
@@ -964,11 +964,33 @@ function listenForCandidates(childPath){
   ref.on('child_added', snap => { const cand = snap.val(); if(pc && cand) pc.addIceCandidate(new RTCIceCandidate(cand)).catch(()=>{}); });
   if(childPath === 'callerCandidates') handledCallerCandidatesRef = ref; else handledCalleeCandidatesRef = ref;
 }
+
 function wireRemoteTrack(){
   const remoteStream = new MediaStream();
   remoteVideo.srcObject = remoteStream;
   pc.ontrack = e => { e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t)); };
 }
+
+function setupPeerConnectionEvents(){
+  pc.oniceconnectionstatechange = () => {
+    if(!pc) return;
+    if(pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed'){
+      callStatusBar.textContent = 'Connected';
+    } else if(pc.iceConnectionState === 'disconnected'){
+      callStatusBar.textContent = 'Reconnecting…';
+    } else if(pc.iceConnectionState === 'failed'){
+      callStatusBar.textContent = 'Attempting recovery…';
+      pc.createOffer({ iceRestart: true }).then(offer => {
+        return pc.setLocalDescription(offer);
+      }).then(() => {
+        if(callRef){
+          callRef.update({ offer: { sdp: pc.localDescription.sdp, type: pc.localDescription.type } });
+        }
+      }).catch(err => console.error("ICE restart failed:", err));
+    }
+  };
+}
+
 function openCallOverlay(isCaller){
   callActive = true; micOn = true; camOn = true;
   toggleMicBtn.classList.remove('off'); toggleCamBtn.classList.remove('off');
